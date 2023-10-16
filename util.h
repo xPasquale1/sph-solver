@@ -16,6 +16,15 @@ constexpr inline float length(vec2& v1, vec2& v2){
 	return sqrt(dx*dx+dy*dy);
 }
 
+const uint64_t modulus = static_cast<unsigned long>(pow(2, 32));
+const uint64_t multiplier = 1664525;
+const uint64_t increment = 1013904223;
+uint64_t x;
+uint64_t nextrand(){
+    x = (multiplier * x + increment) % modulus;
+    return x;
+}
+
 class Timer{
     using clock = std::chrono::system_clock;
     clock::time_point m_time_point;

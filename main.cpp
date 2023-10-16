@@ -21,12 +21,44 @@ struct mouse{
 	bool rmb = false;
 } mouse;
 
-uint window_width = 800;		//Größe des Fensters
+uint window_width = 1200;		//Größe des Fensters
 uint window_height = 800;
 uint pixel_size = 2;
 uint buffer_width = window_width/pixel_size;
 uint buffer_height = window_height/pixel_size;
 uint* memory = nullptr;			//Pointer zum pixel-array
+
+struct Slider{
+	ivec2 pos = {0, 0};
+	ivec2 size = {80, 10};
+	short sliderPos = 0;
+	float val = 0;
+	float min = 0;
+	float max = 100;
+};
+
+void updateSliders(Slider* sliders, uint count){
+	for(uint i=0; i < count; ++i){
+		Slider& s = sliders[i];
+		int x = mouse.pos.x - s.pos.x;
+		int y = mouse.pos.y - s.pos.y;
+		if(mouse.lmb && x >= 0 && x <= s.size.x && y >= 0 && y <= s.size.y){
+			s.sliderPos = x;
+			s.val = ((float)(s.sliderPos))/s.size.x*(s.max-s.min)+s.min;
+			std::cout << s.val << std::endl;
+		}
+		for(int y=s.pos.y; y < s.pos.y+s.size.y; ++y){
+			for(int x=s.pos.x; x < s.pos.x+s.size.x; ++x){
+				memory[y*buffer_width+x] = 0x303030;
+			}
+		}
+		for(int y=s.pos.y; y < s.pos.y+s.size.y; ++y){
+			for(int x=s.pos.x+s.sliderPos; x < s.pos.x+s.sliderPos+2; ++x){
+				memory[y*buffer_width+x] = 0x808080;
+			}
+		}
+	}
+}
 
 struct Particle{
 	vec2 pos = {0};
@@ -39,7 +71,7 @@ struct Particle{
 	vec2 predicted_pos = {0};
 };
 
-uint numParticles = 400;
+uint numParticles = 1200;
 #define ADDITIONAL_PARTICLES 400
 const uint MAX_PARTICLES = ADDITIONAL_PARTICLES+numParticles;
 Particle* particles = new Particle[numParticles+ADDITIONAL_PARTICLES];
@@ -70,22 +102,30 @@ LRESULT CALLBACK window_callback(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lPa
 		mouse.lmb = false;
 		break;
 	}
+	case WM_RBUTTONDOWN:{
+		mouse.rmb = true;
+		break;
+	}
+	case WM_RBUTTONUP:{
+		mouse.rmb = false;
+		break;
+	}
 	case WM_MOUSEMOVE:{
-		mouse.pos.x = GET_X_LPARAM(lParam);
-		mouse.pos.y = GET_Y_LPARAM(lParam);
+		mouse.pos.x = GET_X_LPARAM(lParam)/pixel_size;
+		mouse.pos.y = GET_Y_LPARAM(lParam)/pixel_size;
 		break;
 	}
 	}
 	return DefWindowProc(hwnd, uMsg, wParam, lParam);
 }
 
-#define DAMPING 0.5
+#define DAMPING -0.6
 void Integrate(double dt){
 	for(uint i=0; i < numParticles; ++i){
 		//Update particle
 		Particle& p = particles[i];
-		p.vel.x += p.force.x/p.density*dt;
-		p.vel.y += p.force.y/p.density*dt;
+		p.vel.x += p.force.x/p.density*dt*0.9;
+		p.vel.y += p.force.y/p.density*dt*0.9;
 		p.pos.x += p.vel.x*dt;
 		p.pos.y += p.vel.y*dt;
 		p.predicted_pos.x = p.pos.x+p.vel.x*dt;
@@ -96,20 +136,22 @@ void Integrate(double dt){
 			p.vel.y = p.vel.y*DAMPING;
 		}
 		else if(p.pos.y >= buffer_height-1){
-			p.pos.y = buffer_height-4;
+			p.pos.y = buffer_height-1;
 			p.vel.y = p.vel.y*DAMPING;
 		}
 		if(p.pos.x < 0){
 			p.pos.x = 0;
 			p.vel.x = p.vel.x*DAMPING;
 		}
-		else if(p.pos.x >= buffer_width){
+		else if(p.pos.x >= buffer_width-1){
 			p.pos.x = buffer_width-1;
 			p.vel.x = p.vel.x*DAMPING;
 		}
 	}
 }
 
+static float RADIUS = 50;
+static float MASS = 80;
 inline float smoothingKernel(float radius, float distance){
 	if(distance >= radius) return 0;
 	float volume = PI*pow(radius, 4)/6.f;
@@ -128,9 +170,9 @@ void computeDensity(void){
 
 		for(uint j=0; j < numParticles; ++j){
 			if(i==j) continue;
-			float dist = length(p.pos, particles[j].pos);
-			float strength = smoothingKernel(p.radius, dist);
-			p.density += p.mass * strength;
+			float dist = length(p.predicted_pos, particles[j].predicted_pos);
+			float strength = smoothingKernel(RADIUS, dist);
+			p.density += MASS * strength;
 		}
 	}
 }
@@ -154,15 +196,16 @@ void computePressure(){
 
 		for(uint j=0; j < numParticles; ++j){
 			if(i==j) continue;
-			float dist = length(p.pos, particles[j].pos);
-			float strength = smoothingKernel(p.radius, dist);
-			p.pressure += particles[j].density * p.mass * strength / p.density;
+			float dist = length(p.predicted_pos, particles[j].predicted_pos);
+			float strength = smoothingKernel(RADIUS, dist);
+			p.pressure += particles[j].density * MASS * strength / p.density;
 		}
 	}
 }
 
 static float PRESSURE_MULTIPLIER = 5000;
 static float TARGET_DENSITY = 1.17;
+static float GRAVITY = 0;
 inline float densityError(float density){
 	float err = density - TARGET_DENSITY;
 	return err * PRESSURE_MULTIPLIER;
@@ -182,14 +225,17 @@ void computeForces(void){
 			if(i==j) continue;
 			float dist = length(p.pos, particles[j].pos);
 			vec2 dir;
-			if(dist == 0) dir = {1, 0};
+			if(dist == 0){
+				float val = (nextrand()%2000001)/1000000-1;
+				dir = {(float)cos(val), (float)sin(val)};
+			}
 			else dir = {(p.pos.x - particles[j].pos.x)/dist, (p.pos.y - particles[j].pos.y)/dist};
-			float strength = smoothingKernelDerivative(p.radius, dist);
+			float strength = smoothingKernelDerivative(RADIUS, dist);
 			float pressure = sharedPressure(p.density, particles[j].density);
-			p.force.x -= pressure*dir.x*p.mass*strength/p.density;
-			p.force.y -= pressure*dir.y*p.mass*strength/p.density;
+			p.force.x -= pressure*dir.x*MASS*strength/p.density;
+			p.force.y -= pressure*dir.y*MASS*strength/p.density;
 		}
-//		p.force.y += 2;
+		p.force.y += GRAVITY;
 	}
 }
 
@@ -236,6 +282,15 @@ INT WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PSTR lpCmdLine,
 		float y = rand()%buffer_height;
 		particles[i] = {{x, y}, {0}, {0}, 50, 80, 0, 0};
 	}
+
+	//Init sliders
+	Slider sliders[5];
+	sliders[0] = {{5, 5}, {100, 15}, 0, 2, 1, 3.0};
+	sliders[1] = {{5, 25}, {100, 15}, 0, 1000000, 10000, 1000000};
+	sliders[2] = {{5, 45}, {100, 15}, 0, 35, 30, 180};
+	sliders[3] = {{5, 65}, {100, 15}, 0, 220, 40, 300};
+	sliders[4] = {{5, 85}, {100, 15}, 0, 0, 0, 12000};
+	uint slider_count = 5;
 	//-----------END INIT-----------
 	while(1){
 		MSG msg = {};
@@ -244,26 +299,37 @@ INT WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PSTR lpCmdLine,
 		    DispatchMessage(&msg);
 		}
 
-		timer.start();
-
-		if(mouse.lmb){
-			mouse.lmb = false;
-		}
-
-		UpdateFluid(particles, 0.01);
-
 		//Clear window
 		for(uint i=0; i < buffer_width*buffer_height; ++i){
 			memory[i] = 0;
 		}
+
+		timer.start();
+
+		if(mouse.rmb){
+			for(uint i=0; i < numParticles; ++i){
+				Particle& p = particles[i];
+				vec2 mouse_pos = {(float)mouse.pos.x, (float)mouse.pos.y};
+				float r = length(p.pos, mouse_pos);
+				if(r < RADIUS){
+					if(r == 0) r = 0.000001;
+					vec2 dir = {(p.pos.x - mouse_pos.x)/r, (p.pos.y - mouse_pos.y)/r};
+					p.vel.x -= 140*dir.x;
+					p.vel.y -= 140*dir.y;
+				}
+			}
+		}
+
+		UpdateFluid(particles, 0.008);
+
 //#define VISUALIZE_DENSITY
 #ifdef VISUALIZE_DENSITY
 		float buffer[buffer_width*buffer_height];
 		float max = 0;
 		float min = 99999999999;
 		float avg = 0; float avg_count = 0;
-		for(uint y=0; y < buffer_height; y+=2){
-			for(uint x=0; x < buffer_width; x+=2){
+		for(uint y=0; y < buffer_height; ++y){
+			for(uint x=0; x < buffer_width; ++x){
 				vec2 pt = {(float)x, (float)y};
 				float val = computeDensityPoint(pt, particles[0].radius, particles[0].mass);
 				buffer[y*buffer_width+x] = val;
@@ -280,6 +346,14 @@ INT WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PSTR lpCmdLine,
 			else memory[i] = col | val<<8;
 		}
 #endif
+
+		//Update sliders
+		updateSliders(sliders, slider_count);
+		TARGET_DENSITY = sliders[0].val;
+		PRESSURE_MULTIPLIER = sliders[1].val;
+		RADIUS = sliders[2].val;
+		MASS = sliders[3].val;
+		GRAVITY = sliders[4].val;
 
 		for(uint i=0; i < numParticles; ++i){
 			Particle& p = particles[i];
