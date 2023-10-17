@@ -28,6 +28,12 @@ uint buffer_width = window_width/pixel_size;
 uint buffer_height = window_height/pixel_size;
 uint* memory = nullptr;			//Pointer zum pixel-array
 
+inline __attribute__((always_inline)) void setPixel(int x, int y, uint color){
+	if(x < 0 || x >= (int)buffer_width || y < 0 || y >= (int)buffer_height) return;
+	memory[y*buffer_width+x] = color;
+}
+
+
 struct Slider{
 	ivec2 pos = {0, 0};
 	ivec2 size = {80, 10};
@@ -60,6 +66,7 @@ void updateSliders(Slider* sliders, uint count){
 	}
 }
 
+
 struct Particle{
 	vec2 pos = {0};
 	vec2 vel = {0};
@@ -71,7 +78,7 @@ struct Particle{
 	vec2 predicted_pos = {0};
 };
 
-uint numParticles = 1200;
+uint numParticles = 600;
 #define ADDITIONAL_PARTICLES 400
 const uint MAX_PARTICLES = ADDITIONAL_PARTICLES+numParticles;
 Particle* particles = new Particle[numParticles+ADDITIONAL_PARTICLES];
@@ -119,7 +126,9 @@ LRESULT CALLBACK window_callback(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lPa
 	return DefWindowProc(hwnd, uMsg, wParam, lParam);
 }
 
-#define DAMPING -0.6
+#define DAMPING -0.5
+#define BOUND_X buffer_height
+#define BOUND_Y buffer_height
 void Integrate(double dt){
 	for(uint i=0; i < numParticles; ++i){
 		//Update particle
@@ -135,16 +144,16 @@ void Integrate(double dt){
 			p.pos.y = 0;
 			p.vel.y = p.vel.y*DAMPING;
 		}
-		else if(p.pos.y >= buffer_height-1){
-			p.pos.y = buffer_height-1;
+		else if(p.pos.y >= BOUND_Y-1){
+			p.pos.y = BOUND_Y-1;
 			p.vel.y = p.vel.y*DAMPING;
 		}
 		if(p.pos.x < 0){
 			p.pos.x = 0;
 			p.vel.x = p.vel.x*DAMPING;
 		}
-		else if(p.pos.x >= buffer_width-1){
-			p.pos.x = buffer_width-1;
+		else if(p.pos.x >= BOUND_X-1){
+			p.pos.x = BOUND_X-1;
 			p.vel.x = p.vel.x*DAMPING;
 		}
 	}
@@ -285,11 +294,11 @@ INT WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PSTR lpCmdLine,
 
 	//Init sliders
 	Slider sliders[5];
-	sliders[0] = {{5, 5}, {100, 15}, 0, 2, 1, 3.0};
-	sliders[1] = {{5, 25}, {100, 15}, 0, 1000000, 10000, 1000000};
-	sliders[2] = {{5, 45}, {100, 15}, 0, 35, 30, 180};
-	sliders[3] = {{5, 65}, {100, 15}, 0, 220, 40, 300};
-	sliders[4] = {{5, 85}, {100, 15}, 0, 0, 0, 12000};
+	sliders[0] = {{(int)buffer_width-100-5, 5}, {100, 15}, 0, 2, 1, 3.0};
+	sliders[1] = {{(int)buffer_width-100-5, 25}, {100, 15}, 0, 1000000, 10000, 1000000};
+	sliders[2] = {{(int)buffer_width-100-5, 45}, {100, 15}, 0, 35, 30, 180};
+	sliders[3] = {{(int)buffer_width-100-5, 65}, {100, 15}, 0, 220, 40, 300};
+	sliders[4] = {{(int)buffer_width-100-5, 85}, {100, 15}, 0, 0, 0, 12000};
 	uint slider_count = 5;
 	//-----------END INIT-----------
 	while(1){
@@ -359,9 +368,11 @@ INT WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PSTR lpCmdLine,
 			Particle& p = particles[i];
 			int x = p.pos.x;
 			int y = p.pos.y;
-			if(x >= 0 && x < (int)buffer_width && y >= 0 && y < (int)buffer_height){
-				memory[y*buffer_width+x] = 0xFFFFFF;
-			}
+			setPixel(x, y, 0x0040FF);
+			setPixel(x+1, y, 0x0040FF);
+			setPixel(x, y+1, 0x0040FF);
+			setPixel(x-1, y, 0x0040FF);
+			setPixel(x, y-1, 0x0040FF);
 		}
 
 		HDC hdc = GetDC(window);
