@@ -33,6 +33,17 @@ inline __attribute__((always_inline)) void setPixel(int x, int y, uint color){
 	memory[y*buffer_width+x] = color;
 }
 
+inline void drawCircleOutline(int x, int y, float radius, float thickness, uint color){
+	for(int dx = x-radius; dx <= x+radius; ++dx){
+		for(int dy = y-radius; dy <= y+radius; ++dy){
+			int l1 = dx-x; int l2 = dy-y;
+			float mid = l1*l1+l2*l2;
+			if(mid <= radius*radius && mid >= (radius-thickness)*(radius-thickness)){
+				setPixel(dx, dy, color);
+			}
+		}
+	}
+}
 
 struct Slider{
 	ivec2 pos = {0, 0};
@@ -65,7 +76,6 @@ void updateSliders(Slider* sliders, uint count){
 		}
 	}
 }
-
 
 struct Particle{
 	vec2 pos = {0};
@@ -133,8 +143,8 @@ void Integrate(double dt){
 	for(uint i=0; i < numParticles; ++i){
 		//Update particle
 		Particle& p = particles[i];
-		p.vel.x += p.force.x/p.density*dt*0.9;
-		p.vel.y += p.force.y/p.density*dt*0.9;
+		p.vel.x += p.force.x/p.density*dt;
+		p.vel.y += p.force.y/p.density*dt;
 		p.pos.x += p.vel.x*dt;
 		p.pos.y += p.vel.y*dt;
 		p.predicted_pos.x = p.pos.x+p.vel.x*dt;
@@ -294,13 +304,15 @@ INT WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PSTR lpCmdLine,
 
 	//Init sliders
 	Slider sliders[5];
-	sliders[0] = {{(int)buffer_width-100-5, 5}, {100, 15}, 0, 2, 1, 3.0};
-	sliders[1] = {{(int)buffer_width-100-5, 25}, {100, 15}, 0, 1000000, 10000, 1000000};
-	sliders[2] = {{(int)buffer_width-100-5, 45}, {100, 15}, 0, 35, 30, 180};
-	sliders[3] = {{(int)buffer_width-100-5, 65}, {100, 15}, 0, 220, 40, 300};
+	sliders[0] = {{(int)buffer_width-100-5, 5}, {100, 15}, 0, 1.15, 0, 3.0};
+	sliders[1] = {{(int)buffer_width-100-5, 25}, {100, 15}, 0, 580000, 10000, 2000000};
+	sliders[2] = {{(int)buffer_width-100-5, 45}, {100, 15}, 0, 20, 20, 180};
+	sliders[3] = {{(int)buffer_width-100-5, 65}, {100, 15}, 0, 45, 1, 300};
 	sliders[4] = {{(int)buffer_width-100-5, 85}, {100, 15}, 0, 0, 0, 12000};
 	uint slider_count = 5;
+
 	//-----------END INIT-----------
+
 	while(1){
 		MSG msg = {};
 		while(PeekMessage(&msg, window, 0, 0, PM_REMOVE)){
@@ -329,7 +341,7 @@ INT WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PSTR lpCmdLine,
 			}
 		}
 
-		UpdateFluid(particles, 0.008);
+		UpdateFluid(particles, 0.005);
 
 //#define VISUALIZE_DENSITY
 #ifdef VISUALIZE_DENSITY
@@ -373,6 +385,9 @@ INT WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PSTR lpCmdLine,
 			setPixel(x, y+1, 0x0040FF);
 			setPixel(x-1, y, 0x0040FF);
 			setPixel(x, y-1, 0x0040FF);
+			if(i == 20){
+				drawCircleOutline(x, y, RADIUS, 1, 0xFFFFFF);
+			}
 		}
 
 		HDC hdc = GetDC(window);
