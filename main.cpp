@@ -348,7 +348,7 @@ void computeForces(uint start_idx, uint end_idx){
 
 void UpdateFluid(Particle* particles, double dt, uint start_idx, uint end_idx){
     Integrate(dt, start_idx, end_idx);
-	particlesToGrid(start_idx, end_idx);
+//	particlesToGrid(start_idx, end_idx);
 	computeDensity(start_idx, end_idx);
     computeForces(start_idx, end_idx);
 }
@@ -393,7 +393,7 @@ INT WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PSTR lpCmdLine,
 
 	//Init sliders
 	Slider sliders[5];
-	sliders[0] = {{(int)buffer_width-100-5, 5}, {100, 15}, 0, 1.25, 0, 3.0};
+	sliders[0] = {{(int)buffer_width-100-5, 5}, {100, 15}, 0, 1.3, 0, 3.0};
 	sliders[1] = {{(int)buffer_width-100-5, 25}, {100, 15}, 0, 1500000, 10000, 2000000};
 	sliders[2] = {{(int)buffer_width-100-5, 45}, {100, 15}, 0, 20, 20, 180};
 	sliders[3] = {{(int)buffer_width-100-5, 65}, {100, 15}, 0, 80, 1, 300};
@@ -416,13 +416,25 @@ INT WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PSTR lpCmdLine,
 
 		clearCount();
 
-//		std::thread t1(UpdateFluid, particles, 0.006, 0, numParticles/2);
-//		std::thread t2(UpdateFluid, particles, 0.006, numParticles/2+1, numParticles);
+#define THREADCOUNT 6
+		std::vector<std::thread> threads;
+		uint thread_inc = numParticles/THREADCOUNT;
+		for(uint i=0; i < THREADCOUNT; ++i){
+			threads.push_back(std::thread(particlesToGrid, thread_inc*i, thread_inc*(i+1)));
+		}
+		for(auto& i : threads){
+			i.join();
+		}
 
-		UpdateFluid(particles, 0.006, 0, numParticles);
+		std::vector<std::thread> threads2;
+		for(uint i=0; i < THREADCOUNT; ++i){
+			threads2.push_back(std::thread(UpdateFluid, particles, 0.003, thread_inc*i, thread_inc*(i+1)));
+		}
+		for(auto& i : threads2){
+			i.join();
+		}
 
-//		t1.join();
-//		t2.join();
+//		UpdateFluid(particles, 0.006, 0, numParticles);
 
 		std::cout << "Simulationszeit: " << timer.measure_ms() << std::endl;
 
