@@ -3,7 +3,7 @@
 #include <chrono>
 
 typedef unsigned char uchar;
-typedef unsigned int uint;
+typedef unsigned long uint;
 
 struct vec2{
 	float x;
@@ -16,13 +16,13 @@ constexpr inline float length(vec2& v1, vec2& v2){
 	return sqrt(dx*dx+dy*dy);
 }
 
-const uint64_t modulus = static_cast<unsigned long>(pow(2, 32));
-const uint64_t multiplier = 1664525;
-const uint64_t increment = 1013904223;
-uint64_t x;
+const uint64_t _modulus = static_cast<unsigned long>(pow(2, 32));
+const uint64_t _multiplier = 1664525;
+const uint64_t _increment = 1013904223;
+uint64_t _x;
 uint64_t nextrand(){
-    x = (multiplier * x + increment) % modulus;
-    return x;
+    _x = (_multiplier * _x + _increment) % _modulus;
+    return _x;
 }
 
 class Timer{
