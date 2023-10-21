@@ -29,7 +29,7 @@ uint buffer_width = window_width/pixel_size;
 uint buffer_height = window_height/pixel_size;
 uint* memory = nullptr;			//Pointer zum pixel-array
 
-inline __attribute__((always_inline)) void setPixel(int x, int y, uint color){
+inline void setPixel(int x, int y, uint color){
 	if(x < 0 || x >= (int)buffer_width || y < 0 || y >= (int)buffer_height) return;
 	memory[y*buffer_width+x] = color;
 }
@@ -98,10 +98,9 @@ struct Particle{
 	float pressure = 0;
 	float density = 1;
 	vec2 predicted_pos = {0};
-	byte state = 0;
 };
 
-static uint numParticles = 3200;
+static uint numParticles = 3000;
 Particle* particles = new Particle[numParticles];
 
 LRESULT CALLBACK window_callback(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam){
@@ -147,7 +146,7 @@ LRESULT CALLBACK window_callback(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lPa
 	return DefWindowProc(hwnd, uMsg, wParam, lParam);
 }
 
-static float RADIUS = 20;
+static float RADIUS = 28;
 static float MASS = 70;
 
 #define DAMPING -0.5
@@ -161,9 +160,6 @@ uint* particleCount = new uint[HASHGRIDX*HASHGRIDY];	//Speichert wie viele Parti
 inline void clearCount(void){
 	for(uint i=0; i < HASHGRIDX*HASHGRIDY; ++i){
 		particleCount[i] = 0;
-	}
-	for(uint i=0; i < numParticles; ++i){
-		particles[i].state = 0;
 	}
 }
 inline void particlesToGrid(uint start_idx, uint end_idx){
@@ -214,12 +210,12 @@ void Integrate(double dt, uint start_idx, uint end_idx){
 
 inline float smoothingKernel(float radius, float distance){
 	if(distance >= radius) return 0;
-	float volume = PI*pow(radius, 4)/6.f;
+	float volume = PI*std::pow(radius, 4)/6.f;
 	return (radius-distance)*(radius-distance)/volume;
 }
 inline float smoothingKernelDerivative(float radius, float distance){
 	if(distance >= radius) return 0;
-	float scale = 12/pow(radius, 4)*PI;
+	float scale = 12/std::pow(radius, 4)*PI;
 	return (distance-radius)*scale;
 }
 void computeDensity(uint start_idx, uint end_idx){
@@ -228,13 +224,6 @@ void computeDensity(uint start_idx, uint end_idx){
 		Particle& p = particles[i];
 		p.density = 1;
 
-//		for(uint j=0; j < numParticles; ++j){
-//			if(i==j) continue;
-//			float dist = length(p.predicted_pos, particles[j].predicted_pos);
-//			float strength = smoothingKernel(RADIUS, dist);
-//			p.density += MASS * strength;
-//		}
-
 		for(int y=-1; y <= 1; ++y){
 			for(int x=-1; x <= 1; ++x){
 				uint idx = positionToIndex(p.pos);
@@ -244,41 +233,9 @@ void computeDensity(uint start_idx, uint end_idx){
 				for(uint j=0; j < count; ++j){
 					uint pidx = hashIndices[idx*numParticles+j];
 					if(pidx==i) continue;
-					if(i==50) particles[pidx].state = 1;
 					float dist = length(p.predicted_pos, particles[pidx].predicted_pos);
 					float strength = smoothingKernel(RADIUS, dist);
 					p.density += MASS * strength;
-				}
-			}
-		}
-	}
-}
-
-void computePressure(uint start_idx, uint end_idx){
-	for(uint i=start_idx; i < end_idx; ++i){
-
-		Particle& p = particles[i];
-		p.pressure = 0;
-
-//		for(uint j=0; j < numParticles; ++j){
-//			if(i==j) continue;
-//			float dist = length(p.predicted_pos, particles[j].predicted_pos);
-//			float strength = smoothingKernel(RADIUS, dist);
-//			p.pressure += particles[j].density * MASS * strength / p.density;
-//		}
-
-		for(int y=-1; y <= 1; ++y){
-			for(int x=-1; x <= 1; ++x){
-				uint idx = positionToIndex(p.pos);
-				idx += y*HASHGRIDX+x;
-				if(idx >= HASHGRIDX*HASHGRIDY) continue;
-				uint count = particleCount[idx];
-				for(uint j=0; j < count; ++j){
-					uint pidx = hashIndices[idx*numParticles+j];
-					if(pidx==i) continue;
-					float dist = length(p.predicted_pos, particles[pidx].predicted_pos);
-					float strength = smoothingKernel(RADIUS, dist);
-					p.pressure += particles[pidx].density * MASS * strength / p.density;
 				}
 			}
 		}
@@ -326,29 +283,12 @@ void computeForces(uint start_idx, uint end_idx){
 				}
 			}
 		}
-
-//		for(uint j=0; j < numParticles; ++j){
-//			if(i==j) continue;
-//			float dist = length(p.pos, particles[j].pos);
-//			vec2 dir;
-//			if(dist == 0){
-//				float val = (nextrand()%2000001)/1000000-1;
-//				dir = {(float)cos(val), (float)sin(val)};
-//			}
-//			else dir = {(p.pos.x - particles[j].pos.x)/dist, (p.pos.y - particles[j].pos.y)/dist};
-//			float strength = smoothingKernelDerivative(RADIUS, dist);
-//			float pressure = sharedPressure(p.density, particles[j].density);
-//			p.force.x -= pressure*dir.x*MASS*strength/p.density;
-//			p.force.y -= pressure*dir.y*MASS*strength/p.density;
-//		}
-
 		p.force.y += GRAVITY;
 	}
 }
 
 void UpdateFluid(Particle* particles, double dt, uint start_idx, uint end_idx){
     Integrate(dt, start_idx, end_idx);
-//	particlesToGrid(start_idx, end_idx);
 	computeDensity(start_idx, end_idx);
     computeForces(start_idx, end_idx);
 }
@@ -395,8 +335,8 @@ INT WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PSTR lpCmdLine,
 	Slider sliders[5];
 	sliders[0] = {{(int)buffer_width-100-5, 5}, {100, 15}, 0, 1.3, 0, 3.0};
 	sliders[1] = {{(int)buffer_width-100-5, 25}, {100, 15}, 0, 1500000, 10000, 2000000};
-	sliders[2] = {{(int)buffer_width-100-5, 45}, {100, 15}, 0, 20, 20, 180};
-	sliders[3] = {{(int)buffer_width-100-5, 65}, {100, 15}, 0, 80, 1, 300};
+	sliders[2] = {{(int)buffer_width-100-5, 45}, {100, 15}, 0, 28, 20, 180};
+	sliders[3] = {{(int)buffer_width-100-5, 65}, {100, 15}, 0, 100, 1, 300};
 	sliders[4] = {{(int)buffer_width-100-5, 85}, {100, 15}, 0, 0, 0, 12000};
 	uint slider_count = 5;
 
@@ -416,6 +356,8 @@ INT WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PSTR lpCmdLine,
 
 		clearCount();
 
+//#define MULTITHREADING
+#ifdef MULTITHREADING
 #define THREADCOUNT 6
 		std::vector<std::thread> threads;
 		uint thread_inc = numParticles/THREADCOUNT;
@@ -428,13 +370,15 @@ INT WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PSTR lpCmdLine,
 
 		std::vector<std::thread> threads2;
 		for(uint i=0; i < THREADCOUNT; ++i){
-			threads2.push_back(std::thread(UpdateFluid, particles, 0.003, thread_inc*i, thread_inc*(i+1)));
+			threads2.push_back(std::thread(UpdateFluid, particles, 0.008, thread_inc*i, thread_inc*(i+1)));
 		}
 		for(auto& i : threads2){
 			i.join();
 		}
-
-//		UpdateFluid(particles, 0.006, 0, numParticles);
+#else
+		particlesToGrid(0, numParticles);
+		UpdateFluid(particles, 0.008, 0, numParticles);
+#endif
 
 		std::cout << "Simulationszeit: " << timer.measure_ms() << std::endl;
 
@@ -476,9 +420,7 @@ INT WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PSTR lpCmdLine,
 			Particle& p = particles[i];
 			int x = p.pos.x;
 			int y = p.pos.y;
-			drawCircle(x, y, 3, 0x0040FF);
-			if(i==50) drawCircle(x, y, 3, 0xFF0000);
-			if(p.state == 1) drawCircle(x, y, 3, 0x0070FF);
+			drawCircle(x, y, 4, 0x0040FF);
 		}
 
 		HDC hdc = GetDC(window);
