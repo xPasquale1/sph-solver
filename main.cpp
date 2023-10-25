@@ -7,6 +7,7 @@
 #include <unistd.h>
 #include <cmath>
 #include "util.h"
+#include "window.h"
 
 #define PI 3.14159265359
 typedef unsigned long uint;
@@ -28,6 +29,29 @@ uint pixel_size = 1;
 uint buffer_width = window_width/pixel_size;
 uint buffer_height = window_height/pixel_size;
 uint* memory = nullptr;			//Pointer zum pixel-array
+triangle* triangles = new triangle[100000];
+uint triangle_count = 0;
+
+inline void addCube(vec3 pos, vec3 size, uint color){
+	triangle t[12]; t[0].point[0].pos = {pos.x + size.x, pos.y + size.y, pos.z - size.z}; t[0].point[1].pos = {pos.x + size.x, pos.y - size.y, pos.z - size.z}; t[0].point[2].pos = {pos.x - size.x, pos.y - size.y, pos.z - size.z};
+	t[1].point[0].pos = {pos.x - size.x, pos.y - size.y, pos.z - size.z}; t[1].point[1].pos = {pos.x - size.x, pos.y + size.y, pos.z - size.z}; t[1].point[2].pos = {pos.x + size.x, pos.y + size.y, pos.z - size.z};
+	t[2].point[0].pos = {pos.x + size.x, pos.y + size.y, pos.z + size.z}; t[2].point[1].pos = {pos.x + size.x, pos.y - size.y, pos.z + size.z}; t[2].point[2].pos = {pos.x - size.x, pos.y - size.y, pos.z + size.z};
+	t[3].point[0].pos = {pos.x - size.x, pos.y - size.y, pos.z + size.z}; t[3].point[1].pos = {pos.x - size.x, pos.y + size.y, pos.z + size.z}; t[3].point[2].pos = {pos.x + size.x, pos.y + size.y, pos.z + size.z};
+	t[4].point[0].pos = {pos.x + size.x, pos.y + size.y, pos.z - size.z}; t[4].point[1].pos = {pos.x + size.x, pos.y - size.y, pos.z - size.z}; t[4].point[2].pos = {pos.x + size.x, pos.y - size.y, pos.z + size.z};
+	t[5].point[0].pos = {pos.x + size.x, pos.y - size.y, pos.z + size.z}; t[5].point[1].pos = {pos.x + size.x, pos.y + size.y, pos.z + size.z}; t[5].point[2].pos = {pos.x + size.x, pos.y + size.y, pos.z - size.z};
+	t[6].point[0].pos = {pos.x - size.x, pos.y + size.y, pos.z - size.z}; t[6].point[1].pos = {pos.x - size.x, pos.y - size.y, pos.z - size.z}; t[6].point[2].pos = {pos.x - size.x, pos.y - size.y, pos.z + size.z};
+	t[7].point[0].pos = {pos.x - size.x, pos.y - size.y, pos.z + size.z}; t[7].point[1].pos = {pos.x - size.x, pos.y + size.y, pos.z + size.z}; t[7].point[2].pos = {pos.x - size.x, pos.y + size.y, pos.z - size.z};
+	t[8].point[0].pos = {pos.x + size.x, pos.y + size.y, pos.z - size.z}; t[8].point[1].pos = {pos.x - size.x, pos.y + size.y, pos.z - size.z}; t[8].point[2].pos = {pos.x - size.x, pos.y + size.y, pos.z + size.z};
+	t[9].point[0].pos = {pos.x - size.x, pos.y + size.y, pos.z + size.z}; t[9].point[1].pos = {pos.x + size.x, pos.y + size.y, pos.z + size.z}; t[9].point[2].pos = {pos.x + size.x, pos.y + size.y, pos.z - size.z};
+	t[10].point[0].pos = {pos.x + size.x, pos.y - size.y, pos.z - size.z}; t[10].point[1].pos = {pos.x - size.x, pos.y - size.y, pos.z - size.z}; t[10].point[2].pos = {pos.x - size.x, pos.y - size.y, pos.z + size.z};
+	t[11].point[0].pos = {pos.x - size.x, pos.y - size.y, pos.z + size.z}; t[11].point[1].pos = {pos.x + size.x, pos.y - size.y, pos.z + size.z}; t[11].point[2].pos = {pos.x + size.x, pos.y - size.y, pos.z - size.z};
+	for(uint i=0; i < 12; ++i){
+		t[i].point[0].color = {((color>>16) & 0xFF)/255.f, ((color>>8) & 0xFF)/255.f, ((color) & 0xFF)/255.f};
+		t[i].point[1].color = {((color>>16) & 0xFF)/255.f, ((color>>8) & 0xFF)/255.f, ((color) & 0xFF)/255.f};
+		t[i].point[2].color = {((color>>16) & 0xFF)/255.f, ((color>>8) & 0xFF)/255.f, ((color) & 0xFF)/255.f};
+		triangles[triangle_count++] = t[i];
+	}
+}
 
 inline void setPixel(int x, int y, uint color){
 	if(x < 0 || x >= (int)buffer_width || y < 0 || y >= (int)buffer_height) return;
@@ -95,12 +119,11 @@ struct Particle{
 	vec2 force = {0};
 	float radius = 1.0;
 	float mass = 1;
-	float pressure = 0;
 	float density = 1;
 	vec2 predicted_pos = {0};
 };
 
-static uint numParticles = 3000;
+static uint numParticles = 2000;
 Particle* particles = new Particle[numParticles];
 
 LRESULT CALLBACK window_callback(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam){
@@ -119,6 +142,11 @@ LRESULT CALLBACK window_callback(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lPa
         for(uint i=0; i < buffer_width*buffer_height; ++i){
         	memory[i] = 0;
         }
+    	glViewport(0, 0, LOWORD(lParam), HIWORD(lParam));
+    	float aspect_ratio = (float)window_width/window_height;
+    	glMatrixMode(GL_PROJECTION);	//Passe die Projektionsmatrix an
+    	glLoadIdentity();				//Leere die Projektionsmatrix
+    	glFrustum(-.6*aspect_ratio, .6*aspect_ratio, -.6, .6, 1., 1000.);	//Setze die Projektionsmatrix
         break;
 	}
 	case WM_LBUTTONDOWN:{
@@ -146,7 +174,7 @@ LRESULT CALLBACK window_callback(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lPa
 	return DefWindowProc(hwnd, uMsg, wParam, lParam);
 }
 
-static float RADIUS = 28;
+static float RADIUS = 30;
 static float MASS = 70;
 
 #define DAMPING -0.5
@@ -155,20 +183,24 @@ static float MASS = 70;
 
 static uint HASHGRIDX = buffer_width/(RADIUS*2);
 static uint HASHGRIDY = buffer_height/(RADIUS*2);
-uint* hashIndices = new uint[numParticles*HASHGRIDX*HASHGRIDY];
+static uint cellParticleCount = numParticles/2;
+static uint DEBUGCOUNT = 0;
+uint* hashIndices = new uint[cellParticleCount*HASHGRIDX*HASHGRIDY];
 uint* particleCount = new uint[HASHGRIDX*HASHGRIDY];	//Speichert wie viele Particle sich in einer Bin befinden
 inline void clearCount(void){
 	for(uint i=0; i < HASHGRIDX*HASHGRIDY; ++i){
 		particleCount[i] = 0;
 	}
+	DEBUGCOUNT = 0;
 }
 inline void particlesToGrid(uint start_idx, uint end_idx){
 	for(uint i=start_idx; i < end_idx; ++i){
 		Particle& p = particles[i];
 		uint idx = (uint)(p.pos.y/(BOUNDY+1)*HASHGRIDY)*HASHGRIDX+p.pos.x/(BOUNDX+1)*HASHGRIDX;
 		uint count = particleCount[idx];
+		if(count > DEBUGCOUNT) DEBUGCOUNT = count;
 		particleCount[idx] += 1;
-		idx *= numParticles;
+		idx *= cellParticleCount;
 		idx += count;
 		hashIndices[idx] = i;
 	}
@@ -231,7 +263,7 @@ void computeDensity(uint start_idx, uint end_idx){
 				if(idx >= HASHGRIDX*HASHGRIDY) continue;
 				uint count = particleCount[idx];
 				for(uint j=0; j < count; ++j){
-					uint pidx = hashIndices[idx*numParticles+j];
+					uint pidx = hashIndices[idx*cellParticleCount+j];
 					if(pidx==i) continue;
 					float dist = length(p.predicted_pos, particles[pidx].predicted_pos);
 					float strength = smoothingKernel(RADIUS, dist);
@@ -267,7 +299,7 @@ void computeForces(uint start_idx, uint end_idx){
 				if(idx >= HASHGRIDX*HASHGRIDY) continue;
 				uint count = particleCount[idx];
 				for(uint j=0; j < count; ++j){
-					uint pidx = hashIndices[idx*numParticles+j];
+					uint pidx = hashIndices[idx*cellParticleCount+j];
 					if(pidx==i) continue;
 					float dist = length(p.pos, particles[pidx].pos);
 					vec2 dir;
@@ -287,25 +319,17 @@ void computeForces(uint start_idx, uint end_idx){
 	}
 }
 
-void UpdateFluid(Particle* particles, double dt, uint start_idx, uint end_idx){
-    Integrate(dt, start_idx, end_idx);
-	computeDensity(start_idx, end_idx);
-    computeForces(start_idx, end_idx);
-}
-
 INT WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PSTR lpCmdLine, INT nCmdShow){
+	HDC hDC; HGLRC hRC;
 
-	//Erstelle Fenster Klasse
-	WNDCLASS window_class = {};
-	window_class.style = CS_HREDRAW | CS_VREDRAW;
-	window_class.lpszClassName = "Window-Class";
-	window_class.lpfnWndProc = window_callback;
+	HWND window = CreateOpenGLWindow("Window", 0, 0, window_width, window_height, PFD_TYPE_RGBA, 0, window_callback);
+	ShowWindow(window, nCmdShow);
+	if(window == NULL) exit(-1);
 
-	//Registriere Fenster Klasse
-	RegisterClass(&window_class);
-
-	//Erstelle das Fenster
-	HWND window = CreateWindow(window_class.lpszClassName, "Window", WS_OVERLAPPEDWINDOW | WS_VISIBLE, CW_USEDEFAULT, CW_USEDEFAULT, window_width, window_height, NULL, NULL, hInstance, NULL);
+	hDC = GetDC(window);			//Hole den Device-Kontext
+	hRC = wglCreateContext(hDC);	//Erstelle neuen Kontext
+	wglMakeCurrent(hDC, hRC);		//Mache den neuen Kontext den Momentanen
+	glEnable(GL_DEPTH_TEST);		//Depth-Buffering
 
 	//Bitmap-Info
 	BITMAPINFO bitmapInfo = {};
@@ -328,17 +352,21 @@ INT WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PSTR lpCmdLine,
 	for(uint i=0; i < numParticles; ++i){
 		float x = rand()%BOUNDX;
 		float y = rand()%BOUNDY;
-		particles[i] = {{x, y}, {0}, {0}, 50, 80, 0, 1};
+		particles[i] = {{x, y}, {0}, {0}, 50, 80, 1};
 	}
 
 	//Init sliders
 	Slider sliders[5];
 	sliders[0] = {{(int)buffer_width-100-5, 5}, {100, 15}, 0, 1.3, 0, 3.0};
 	sliders[1] = {{(int)buffer_width-100-5, 25}, {100, 15}, 0, 1500000, 10000, 2000000};
-	sliders[2] = {{(int)buffer_width-100-5, 45}, {100, 15}, 0, 28, 20, 180};
+	sliders[2] = {{(int)buffer_width-100-5, 45}, {100, 15}, 0, 30, 20, 180};
 	sliders[3] = {{(int)buffer_width-100-5, 65}, {100, 15}, 0, 100, 1, 300};
-	sliders[4] = {{(int)buffer_width-100-5, 85}, {100, 15}, 0, 0, 0, 12000};
+	sliders[4] = {{(int)buffer_width-100-5, 85}, {100, 15}, 0, 0, 6000, 12000};
 	uint slider_count = 5;
+
+	cam.pos = {buffer_width/2, buffer_height/2, 750};
+	cam.rot = {0, 0};
+	cam.focal_length = 1.;
 
 	//-----------END INIT-----------
 
@@ -376,11 +404,14 @@ INT WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PSTR lpCmdLine,
 			i.join();
 		}
 #else
+	    Integrate(0.009, 0, numParticles);
 		particlesToGrid(0, numParticles);
-		UpdateFluid(particles, 0.008, 0, numParticles);
+		computeDensity(0, numParticles);
+	    computeForces(0, numParticles);
 #endif
 
 		std::cout << "Simulationszeit: " << timer.measure_ms() << std::endl;
+		std::cout << DEBUGCOUNT << std::endl;
 
 		if(mouse.lmb || mouse.rmb){
 			for(uint i=0; i < numParticles; ++i){
@@ -416,23 +447,29 @@ INT WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PSTR lpCmdLine,
 
 		timer.start();
 
+		triangle_count = 0;
 		for(uint i=0; i < numParticles; ++i){
 			Particle& p = particles[i];
-			int x = p.pos.x;
-			int y = p.pos.y;
-			drawCircle(x, y, 4, 0x0040FF);
+			addCube({p.pos.x, p.pos.y, 0}, {1, 1, 1}, 0x0040FF);
 		}
 
-		HDC hdc = GetDC(window);
-		bitmapInfo.bmiHeader.biWidth = buffer_width;
-		bitmapInfo.bmiHeader.biHeight = -buffer_height;
-		StretchDIBits(hdc, 0, 0, window_width, window_height, 0, 0, buffer_width, buffer_height, memory, &bitmapInfo, DIB_RGB_COLORS, SRCCOPY);
-		ReleaseDC(window, hdc);
+		addCube({0, 0, 0}, {1, 1, 1}, 0xFFFFFF);
+		display(triangles, triangle_count);
+//		HDC hdc = GetDC(window);
+//		bitmapInfo.bmiHeader.biWidth = buffer_width;
+//		bitmapInfo.bmiHeader.biHeight = -buffer_height;
+//		StretchDIBits(hdc, 0, 0, window_width, window_height, 0, 0, buffer_width, buffer_height, memory, &bitmapInfo, DIB_RGB_COLORS, SRCCOPY);
+//		ReleaseDC(window, hdc);
 
 		std::cout << "Renderzeit: " << timer.measure_ms() << std::endl;
 
 	}
 
 	delete[] particles;
+	delete[] triangles;
+    wglMakeCurrent(NULL, NULL);
+    ReleaseDC(window, hDC);
+    wglDeleteContext(hRC);
+    DestroyWindow(window);
 
 }

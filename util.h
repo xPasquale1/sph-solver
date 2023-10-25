@@ -1,13 +1,21 @@
 #pragma once
 
-#include <chrono>
+#include <windows.h>
 
 typedef unsigned char uchar;
 typedef unsigned long uint;
 
+#define PI 3.14159265359
+
 struct vec2{
 	float x;
 	float y;
+};
+
+struct vec3{
+	float x;
+	float y;
+	float z;
 };
 
 constexpr inline float length(vec2& v1, vec2& v2){
@@ -53,3 +61,11 @@ public:
         return out/8.;
     }
 };
+
+inline __attribute__((always_inline))  float radtodeg(float rad){
+	return rad * 180/PI;
+}
+
+inline __attribute__((always_inline))  float degtorad(float deg){
+	return deg/180*PI;
+}
