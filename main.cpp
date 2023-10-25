@@ -28,7 +28,6 @@ uint window_height = 800;
 uint pixel_size = 1;
 uint buffer_width = window_width/pixel_size;
 uint buffer_height = window_height/pixel_size;
-uint* memory = nullptr;			//Pointer zum pixel-array
 triangle* triangles = new triangle[100000];
 uint triangle_count = 0;
 
@@ -53,35 +52,6 @@ inline void addCube(vec3 pos, vec3 size, uint color){
 	}
 }
 
-inline void setPixel(int x, int y, uint color){
-	if(x < 0 || x >= (int)buffer_width || y < 0 || y >= (int)buffer_height) return;
-	memory[y*buffer_width+x] = color;
-}
-
-inline void drawCircleOutline(int x, int y, float radius, float thickness, uint color){
-	for(int dx = x-radius; dx <= x+radius; ++dx){
-		for(int dy = y-radius; dy <= y+radius; ++dy){
-			int l1 = dx-x; int l2 = dy-y;
-			float mid = l1*l1+l2*l2;
-			if(mid <= radius*radius && mid >= (radius-thickness)*(radius-thickness)){
-				setPixel(dx, dy, color);
-			}
-		}
-	}
-}
-
-inline void drawCircle(int x, int y, float radius, uint color){
-	for(int dx = x-radius; dx <= x+radius; ++dx){
-		for(int dy = y-radius; dy <= y+radius; ++dy){
-			int l1 = dx-x; int l2 = dy-y;
-			float mid = l1*l1+l2*l2;
-			if(mid <= radius*radius){
-				setPixel(dx, dy, color);
-			}
-		}
-	}
-}
-
 struct Slider{
 	ivec2 pos = {0, 0};
 	ivec2 size = {80, 10};
@@ -102,12 +72,12 @@ void updateSliders(Slider* sliders, uint count){
 		}
 		for(int y=s.pos.y; y < s.pos.y+s.size.y; ++y){
 			for(int x=s.pos.x; x < s.pos.x+s.size.x; ++x){
-				memory[y*buffer_width+x] = 0x303030;
+//				memory[y*buffer_width+x] = 0x303030;
 			}
 		}
 		for(int y=s.pos.y; y < s.pos.y+s.size.y; ++y){
 			for(int x=s.pos.x+s.sliderPos; x < s.pos.x+s.sliderPos+2; ++x){
-				memory[y*buffer_width+x] = 0x808080;
+//				memory[y*buffer_width+x] = 0x808080;
 			}
 		}
 	}
@@ -137,16 +107,11 @@ LRESULT CALLBACK window_callback(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lPa
 		window_height = HIWORD(lParam);
 		buffer_width = window_width/pixel_size;
 		buffer_height = window_height/pixel_size;
-        delete[] memory;
-        memory = new uint[buffer_width*buffer_height];
-        for(uint i=0; i < buffer_width*buffer_height; ++i){
-        	memory[i] = 0;
-        }
     	glViewport(0, 0, LOWORD(lParam), HIWORD(lParam));
     	float aspect_ratio = (float)window_width/window_height;
     	glMatrixMode(GL_PROJECTION);	//Passe die Projektionsmatrix an
     	glLoadIdentity();				//Leere die Projektionsmatrix
-    	glFrustum(-.6*aspect_ratio, .6*aspect_ratio, -.6, .6, 1., 1000.);	//Setze die Projektionsmatrix
+    	glFrustum(-.6*aspect_ratio, .6*aspect_ratio, .6, -.6, 1., 100000.);	//Setze die Projektionsmatrix
         break;
 	}
 	case WM_LBUTTONDOWN:{
@@ -168,6 +133,41 @@ LRESULT CALLBACK window_callback(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lPa
 	case WM_MOUSEMOVE:{
 		mouse.pos.x = GET_X_LPARAM(lParam)/pixel_size;
 		mouse.pos.y = GET_Y_LPARAM(lParam)/pixel_size;
+		break;
+	}
+	case WM_KEYDOWN:{
+		switch(wParam){
+		case 0x57:
+			cam.pos.z -= 10;
+			break;
+		case 0x53:
+			cam.pos.z += 10;
+			break;
+		case 0x41:
+			cam.pos.x -= 10;
+			break;
+		case 0x44:
+			cam.pos.x += 10;
+			break;
+		case VK_SHIFT:
+			cam.pos.y += 10;
+			break;
+		case VK_SPACE:
+			cam.pos.y -= 10;
+			break;
+		case VK_UP:
+			cam.rot.y += 0.025;
+			break;
+		case VK_DOWN:
+			cam.rot.y -= 0.025;
+			break;
+		case VK_LEFT:
+			cam.rot.x -= 0.025;
+			break;
+		case VK_RIGHT:
+			cam.rot.x += 0.025;
+			break;
+		}
 		break;
 	}
 	}
@@ -331,22 +331,15 @@ INT WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PSTR lpCmdLine,
 	wglMakeCurrent(hDC, hRC);		//Mache den neuen Kontext den Momentanen
 	glEnable(GL_DEPTH_TEST);		//Depth-Buffering
 
-	//Bitmap-Info
-	BITMAPINFO bitmapInfo = {};
-	bitmapInfo.bmiHeader.biSize = sizeof(bitmapInfo.bmiHeader);
-	bitmapInfo.bmiHeader.biPlanes = 1;
-	bitmapInfo.bmiHeader.biBitCount = 32;
-	bitmapInfo.bmiHeader.biCompression = BI_RGB;
+	glViewport(0, 0, window_width, window_height);
+	float aspect_ratio = (float)window_width/window_height;
+	glMatrixMode(GL_PROJECTION);	//Passe die Projektionsmatrix an
+	glLoadIdentity();				//Leere die Projektionsmatrix
+	glFrustum(-.6*aspect_ratio, .6*aspect_ratio, .6, -.6, 1., 100000.);	//Setze die Projektionsmatrix
 
 	Timer timer;
 
 	//-----------INIT-----------
-	//Setze die Bildschirmfarbe auf Schwarz
-	for(uint y=0; y < buffer_height; ++y){
-	    for(uint x=0; x < buffer_width; ++x){
-	    	memory[y*buffer_width+x] = 0;
-	    }
-	}
 
 	//Init particles
 	for(uint i=0; i < numParticles; ++i){
@@ -361,10 +354,10 @@ INT WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PSTR lpCmdLine,
 	sliders[1] = {{(int)buffer_width-100-5, 25}, {100, 15}, 0, 1500000, 10000, 2000000};
 	sliders[2] = {{(int)buffer_width-100-5, 45}, {100, 15}, 0, 30, 20, 180};
 	sliders[3] = {{(int)buffer_width-100-5, 65}, {100, 15}, 0, 100, 1, 300};
-	sliders[4] = {{(int)buffer_width-100-5, 85}, {100, 15}, 0, 0, 6000, 12000};
+	sliders[4] = {{(int)buffer_width-100-5, 85}, {100, 15}, 0, 1200, 0, 12000};
 	uint slider_count = 5;
 
-	cam.pos = {buffer_width/2, buffer_height/2, 750};
+	cam.pos = {(float)buffer_width/2, (float)buffer_height/2, 650};
 	cam.rot = {0, 0};
 	cam.focal_length = 1.;
 
@@ -376,9 +369,6 @@ INT WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PSTR lpCmdLine,
 		    TranslateMessage(&msg);
 		    DispatchMessage(&msg);
 		}
-
-		//Clear window
-		for(uint i=0; i < buffer_width*buffer_height; ++i) memory[i] = 0;
 
 		timer.start();
 
@@ -430,13 +420,6 @@ INT WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PSTR lpCmdLine,
 			}
 		}
 
-		for(uint y=1; y < HASHGRIDY; ++y){
-			for(uint x=0; x < buffer_width; ++x) memory[(y*buffer_height/HASHGRIDY)*buffer_width+x] = 0x202020;
-		}
-		for(uint x=1; x < HASHGRIDX; ++x){
-			for(uint y=0; y < buffer_height; ++y) memory[(y)*buffer_width+(x*buffer_width/HASHGRIDX)] = 0x202020;
-		}
-
 		//Update sliders
 		updateSliders(sliders, slider_count);
 		TARGET_DENSITY = sliders[0].val;
@@ -450,16 +433,10 @@ INT WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PSTR lpCmdLine,
 		triangle_count = 0;
 		for(uint i=0; i < numParticles; ++i){
 			Particle& p = particles[i];
-			addCube({p.pos.x, p.pos.y, 0}, {1, 1, 1}, 0x0040FF);
+			addCube({p.pos.x, p.pos.y, 0}, {2.5, 2.5, 2.5}, 0x0040FF);
 		}
 
-		addCube({0, 0, 0}, {1, 1, 1}, 0xFFFFFF);
 		display(triangles, triangle_count);
-//		HDC hdc = GetDC(window);
-//		bitmapInfo.bmiHeader.biWidth = buffer_width;
-//		bitmapInfo.bmiHeader.biHeight = -buffer_height;
-//		StretchDIBits(hdc, 0, 0, window_width, window_height, 0, 0, buffer_width, buffer_height, memory, &bitmapInfo, DIB_RGB_COLORS, SRCCOPY);
-//		ReleaseDC(window, hdc);
 
 		std::cout << "Renderzeit: " << timer.measure_ms() << std::endl;
 
