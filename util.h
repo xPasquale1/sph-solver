@@ -7,6 +7,11 @@ typedef unsigned long uint;
 
 #define PI 3.14159265359
 
+struct ivec2{
+	int x;
+	int y;
+};
+
 struct vec2{
 	float x;
 	float y;
@@ -22,6 +27,13 @@ constexpr inline float length(vec2& v1, vec2& v2){
 	float dx = v2.x-v1.x;
 	float dy = v2.y-v1.y;
 	return sqrt(dx*dx+dy*dy);
+}
+
+constexpr inline float length(vec3& v1, vec3& v2){
+	float dx = v2.x-v1.x;
+	float dy = v2.y-v1.y;
+	float dz = v2.z-v1.z;
+	return sqrt(dx*dx+dy*dy+dz*dz);
 }
 
 const uint64_t _modulus = static_cast<unsigned long>(pow(2, 32));

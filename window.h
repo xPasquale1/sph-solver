@@ -14,6 +14,15 @@ struct triangle{
 	vertex point[3];
 };
 
+struct point{
+	vec3 pos;
+	vec3 color = {1.f, 1.f, 1.f};
+};
+
+struct triangle2D{
+	point point[3];
+};
+
 struct camera{
 	float focal_length;
 	vec3 pos;
@@ -70,7 +79,7 @@ HWND CreateOpenGLWindow(const char* title, int x, int y, int width, int height, 
     return hWnd;
 }
 
-inline void display(triangle* triangles, uint triangle_count){
+inline void display(triangle* triangles, uint triangle_count, triangle2D* triangles2D, uint triangle2D_count){
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
     glPopMatrix();
 	glRotatef(radtodeg(cam.rot.y), 1, 0, 0);
@@ -88,6 +97,16 @@ inline void display(triangle* triangles, uint triangle_count){
 
 			glColor4f(tri.point[j].color.x, tri.point[j].color.y, tri.point[j].color.z, 1.f);
 			glTexCoord2f(tri.point[j].tex_coord.x, tri.point[j].tex_coord.y);
+			glVertex3f(tri.point[j].pos.x, tri.point[j].pos.y, tri.point[j].pos.z);
+    	}
+    }
+
+    glPopMatrix();
+    glLoadIdentity();
+    for(uint i=0; i < triangle2D_count; ++i){
+    	triangle2D tri = triangles2D[i];
+    	for(uint j=0; j < 3; ++j){
+			glColor4f(tri.point[j].color.x, tri.point[j].color.y, tri.point[j].color.z, 1.f);
 			glVertex3f(tri.point[j].pos.x, tri.point[j].pos.y, tri.point[j].pos.z);
     	}
     }

@@ -12,11 +12,6 @@
 #define PI 3.14159265359
 typedef unsigned long uint;
 
-struct ivec2{
-	int x;
-	int y;
-};
-
 struct mouse{
 	ivec2 pos;
 	bool lmb = false;
@@ -28,8 +23,10 @@ uint window_height = 800;
 uint pixel_size = 1;
 uint buffer_width = window_width/pixel_size;
 uint buffer_height = window_height/pixel_size;
-triangle* triangles = new triangle[100000];
+triangle* triangles = new triangle[400000];
 uint triangle_count = 0;
+triangle2D* triangles2D = new triangle2D[1200];
+uint triangle2D_count = 0;
 
 inline void addCube(vec3 pos, vec3 size, uint color){
 	triangle t[12]; t[0].point[0].pos = {pos.x + size.x, pos.y + size.y, pos.z - size.z}; t[0].point[1].pos = {pos.x + size.x, pos.y - size.y, pos.z - size.z}; t[0].point[2].pos = {pos.x - size.x, pos.y - size.y, pos.z - size.z};
@@ -70,30 +67,51 @@ void updateSliders(Slider* sliders, uint count){
 			s.sliderPos = x;
 			s.val = ((float)(s.sliderPos))/s.size.x*(s.max-s.min)+s.min;
 		}
-		for(int y=s.pos.y; y < s.pos.y+s.size.y; ++y){
-			for(int x=s.pos.x; x < s.pos.x+s.size.x; ++x){
-//				memory[y*buffer_width+x] = 0x303030;
-			}
-		}
-		for(int y=s.pos.y; y < s.pos.y+s.size.y; ++y){
-			for(int x=s.pos.x+s.sliderPos; x < s.pos.x+s.sliderPos+2; ++x){
-//				memory[y*buffer_width+x] = 0x808080;
-			}
-		}
+		//Hintergrund
+		triangles2D[triangle2D_count].point[0].color = {.2, .2, .2};
+		triangles2D[triangle2D_count].point[0].pos = {(float)s.pos.x, (float)s.pos.y, 1};
+		triangles2D[triangle2D_count].point[1].color = {.2, .2, .2};
+		triangles2D[triangle2D_count].point[1].pos = {(float)s.pos.x+s.size.x, (float)s.pos.y, 1};
+		triangles2D[triangle2D_count].point[2].color = {.2, .2, .2};
+		triangles2D[triangle2D_count].point[2].pos = {(float)s.pos.x, (float)s.pos.y+s.size.y, 1};
+		triangle2D_count++;
+		triangles2D[triangle2D_count].point[0].color = {.2, .2, .2};
+		triangles2D[triangle2D_count].point[0].pos = {(float)s.pos.x+s.size.x, (float)s.pos.y+s.size.y, 1};
+		triangles2D[triangle2D_count].point[1].color = {.2, .2, .2};
+		triangles2D[triangle2D_count].point[1].pos = {(float)s.pos.x+s.size.x, (float)s.pos.y, 1};
+		triangles2D[triangle2D_count].point[2].color = {.2, .2, .2};
+		triangles2D[triangle2D_count].point[2].pos = {(float)s.pos.x, (float)s.pos.y+s.size.y, 1};
+		triangle2D_count++;
+
+		//Slider
+		triangles2D[triangle2D_count].point[0].color = {.8, .8, .8};
+		triangles2D[triangle2D_count].point[0].pos = {(float)s.pos.x+s.sliderPos, (float)s.pos.y, 2};
+		triangles2D[triangle2D_count].point[1].color = {.8, .8, .8};
+		triangles2D[triangle2D_count].point[1].pos = {(float)s.pos.x+s.sliderPos+2, (float)s.pos.y, 2};
+		triangles2D[triangle2D_count].point[2].color = {.8, .8, .8};
+		triangles2D[triangle2D_count].point[2].pos = {(float)s.pos.x+s.sliderPos, (float)s.pos.y+s.size.y, 2};
+		triangle2D_count++;
+		triangles2D[triangle2D_count].point[0].color = {.8, .8, .8};
+		triangles2D[triangle2D_count].point[0].pos = {(float)s.pos.x+s.sliderPos+2, (float)s.pos.y+s.size.y, 2};
+		triangles2D[triangle2D_count].point[1].color = {.8, .8, .8};
+		triangles2D[triangle2D_count].point[1].pos = {(float)s.pos.x+s.sliderPos+2, (float)s.pos.y, 2};
+		triangles2D[triangle2D_count].point[2].color = {.8, .8, .8};
+		triangles2D[triangle2D_count].point[2].pos = {(float)s.pos.x+s.sliderPos, (float)s.pos.y+s.size.y, 2};
+		triangle2D_count++;
 	}
 }
 
 struct Particle{
-	vec2 pos = {0};
-	vec2 vel = {0};
-	vec2 force = {0};
+	vec3 pos = {0};
+	vec3 vel = {0};
+	vec3 force = {0};
 	float radius = 1.0;
 	float mass = 1;
 	float density = 1;
-	vec2 predicted_pos = {0};
+	vec3 predicted_pos = {0};
 };
 
-static uint numParticles = 2000;
+static uint numParticles = 10000;
 Particle* particles = new Particle[numParticles];
 
 LRESULT CALLBACK window_callback(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam){
@@ -180,15 +198,17 @@ static float MASS = 70;
 #define DAMPING -0.5
 #define BOUNDX buffer_width
 #define BOUNDY buffer_height
+#define BOUNDZ buffer_width
 
 static uint HASHGRIDX = buffer_width/(RADIUS*2);
 static uint HASHGRIDY = buffer_height/(RADIUS*2);
+static uint HASHGRIDZ = buffer_width/(RADIUS*2);
 static uint cellParticleCount = numParticles/2;
 static uint DEBUGCOUNT = 0;
-uint* hashIndices = new uint[cellParticleCount*HASHGRIDX*HASHGRIDY];
-uint* particleCount = new uint[HASHGRIDX*HASHGRIDY];	//Speichert wie viele Particle sich in einer Bin befinden
+uint* hashIndices = new uint[cellParticleCount*HASHGRIDX*HASHGRIDY*HASHGRIDZ];
+uint* particleCount = new uint[HASHGRIDX*HASHGRIDY*HASHGRIDZ];	//Speichert wie viele Particle sich in einer Bin befinden
 inline void clearCount(void){
-	for(uint i=0; i < HASHGRIDX*HASHGRIDY; ++i){
+	for(uint i=0; i < HASHGRIDX*HASHGRIDY*HASHGRIDZ; ++i){
 		particleCount[i] = 0;
 	}
 	DEBUGCOUNT = 0;
@@ -196,7 +216,7 @@ inline void clearCount(void){
 inline void particlesToGrid(uint start_idx, uint end_idx){
 	for(uint i=start_idx; i < end_idx; ++i){
 		Particle& p = particles[i];
-		uint idx = (uint)(p.pos.y/(BOUNDY+1)*HASHGRIDY)*HASHGRIDX+p.pos.x/(BOUNDX+1)*HASHGRIDX;
+		uint idx = (uint)p.pos.y/(BOUNDY+1)*HASHGRIDY*HASHGRIDX*HASHGRIDZ+p.pos.x/(BOUNDX+1)*HASHGRIDX*HASHGRIDZ+p.pos.z/(BOUNDZ+1)*HASHGRIDZ;
 		uint count = particleCount[idx];
 		if(count > DEBUGCOUNT) DEBUGCOUNT = count;
 		particleCount[idx] += 1;
@@ -206,8 +226,8 @@ inline void particlesToGrid(uint start_idx, uint end_idx){
 	}
 }
 
-inline long positionToIndex(vec2 pos){
-	return (uint)(pos.y/(BOUNDY+1)*HASHGRIDY)*HASHGRIDX+pos.x/(BOUNDX+1)*HASHGRIDX;
+inline long positionToIndex(vec3 pos){
+	return (uint)pos.y/(BOUNDY+1)*HASHGRIDY*HASHGRIDX*HASHGRIDZ+pos.x/(BOUNDX+1)*HASHGRIDX*HASHGRIDZ+pos.z/(BOUNDZ+1)*HASHGRIDZ;
 }
 
 void Integrate(double dt, uint start_idx, uint end_idx){
@@ -216,10 +236,13 @@ void Integrate(double dt, uint start_idx, uint end_idx){
 		Particle& p = particles[i];
 		p.vel.x += p.force.x/p.density*dt;
 		p.vel.y += p.force.y/p.density*dt;
+		p.vel.z += p.force.z/p.density*dt;
 		p.pos.x += p.vel.x*dt;
 		p.pos.y += p.vel.y*dt;
+		p.pos.z += p.vel.z*dt;
 		p.predicted_pos.x = p.pos.x+p.vel.x*dt;
 		p.predicted_pos.y = p.pos.y+p.vel.y*dt;
+		p.predicted_pos.z = p.pos.y+p.vel.z*dt;
 
 		if(p.pos.y < 0){
 			p.pos.y = 0;
@@ -237,18 +260,28 @@ void Integrate(double dt, uint start_idx, uint end_idx){
 			p.pos.x = BOUNDX-1;
 			p.vel.x = p.vel.x*DAMPING;
 		}
+		if(p.pos.z < 0){
+			p.pos.z = 0;
+			p.vel.z = p.vel.z*DAMPING;
+		}
+		else if(p.pos.z >= BOUNDZ-1){
+			p.pos.z = BOUNDZ-1;
+			p.vel.z = p.vel.z*DAMPING;
+		}
 	}
 }
 
 inline float smoothingKernel(float radius, float distance){
 	if(distance >= radius) return 0;
-	float volume = PI*std::pow(radius, 4)/6.f;
-	return (radius-distance)*(radius-distance)/volume;
+	float scale = 15/(PI*pow(radius, 6));
+	float v = radius-distance;
+	return v*v*v*scale;
 }
 inline float smoothingKernelDerivative(float radius, float distance){
 	if(distance >= radius) return 0;
-	float scale = 12/std::pow(radius, 4)*PI;
-	return (distance-radius)*scale;
+	float scale = 45/(pow(radius, 6)*PI);
+	float v = radius-distance;
+	return -v*v*scale;
 }
 void computeDensity(uint start_idx, uint end_idx){
 	for(uint i=start_idx; i < end_idx; ++i){
@@ -258,16 +291,18 @@ void computeDensity(uint start_idx, uint end_idx){
 
 		for(int y=-1; y <= 1; ++y){
 			for(int x=-1; x <= 1; ++x){
-				uint idx = positionToIndex(p.pos);
-				idx += y*HASHGRIDX+x;
-				if(idx >= HASHGRIDX*HASHGRIDY) continue;
-				uint count = particleCount[idx];
-				for(uint j=0; j < count; ++j){
-					uint pidx = hashIndices[idx*cellParticleCount+j];
-					if(pidx==i) continue;
-					float dist = length(p.predicted_pos, particles[pidx].predicted_pos);
-					float strength = smoothingKernel(RADIUS, dist);
-					p.density += MASS * strength;
+				for(int z=-1; z <= 1; ++z){
+					uint idx = positionToIndex(p.pos);
+					idx += y*HASHGRIDX*HASHGRIDZ+x*HASHGRIDZ+z;
+					if(idx >= HASHGRIDX*HASHGRIDY*HASHGRIDZ) continue;
+					uint count = particleCount[idx];
+					for(uint j=0; j < count; ++j){
+						uint pidx = hashIndices[idx*cellParticleCount+j];
+						if(pidx==i) continue;
+						float dist = length(p.predicted_pos, particles[pidx].predicted_pos);
+						float strength = smoothingKernel(RADIUS, dist);
+						p.density += MASS * strength;
+					}
 				}
 			}
 		}
@@ -290,33 +325,42 @@ void computeForces(uint start_idx, uint end_idx){
 	for(uint i=start_idx; i < end_idx; ++i){
 
 		Particle& p = particles[i];
-		p.force = {0, 0};
+		p.force = {0, 0, 0};
 
 		for(int y=-1; y <= 1; ++y){
 			for(int x=-1; x <= 1; ++x){
-				uint idx = positionToIndex(p.pos);
-				idx += y*HASHGRIDX+x;
-				if(idx >= HASHGRIDX*HASHGRIDY) continue;
-				uint count = particleCount[idx];
-				for(uint j=0; j < count; ++j){
-					uint pidx = hashIndices[idx*cellParticleCount+j];
-					if(pidx==i) continue;
-					float dist = length(p.pos, particles[pidx].pos);
-					vec2 dir;
-					if(dist == 0){
-						float val = (nextrand()%2000001)/1000000-1;
-						dir = {(float)cos(val), (float)sin(val)};
+				for(int z=-1; z <= 1; ++z){
+					uint idx = positionToIndex(p.pos);
+					idx += y*HASHGRIDX*HASHGRIDZ+x*HASHGRIDZ+z;
+					if(idx >= HASHGRIDX*HASHGRIDY*HASHGRIDZ) continue;
+					uint count = particleCount[idx];
+					for(uint j=0; j < count; ++j){
+						uint pidx = hashIndices[idx*cellParticleCount+j];
+						if(pidx==i) continue;
+						float dist = length(p.pos, particles[pidx].pos);
+						vec3 dir;
+						if(dist == 0){
+							float val = (nextrand()%2000001)/1000000-1;
+							dir = {(float)cos(val), (float)sin(val), 0};
+						}
+						else dir = {(p.pos.x - particles[pidx].pos.x)/dist, (p.pos.y - particles[pidx].pos.y)/dist, (p.pos.z - particles[pidx].pos.z)/dist};
+						float strength = smoothingKernelDerivative(RADIUS, dist);
+						float pressure = sharedPressure(p.density, particles[pidx].density);
+						p.force.x -= pressure*dir.x*MASS*strength/p.density;
+						p.force.y -= pressure*dir.y*MASS*strength/p.density;
+						p.force.z -= pressure*dir.z*MASS*strength/p.density;
 					}
-					else dir = {(p.pos.x - particles[pidx].pos.x)/dist, (p.pos.y - particles[pidx].pos.y)/dist};
-					float strength = smoothingKernelDerivative(RADIUS, dist);
-					float pressure = sharedPressure(p.density, particles[pidx].density);
-					p.force.x -= pressure*dir.x*MASS*strength/p.density;
-					p.force.y -= pressure*dir.y*MASS*strength/p.density;
 				}
 			}
 		}
 		p.force.y += GRAVITY;
 	}
+}
+
+void updateFluid(float dt, uint start_idx, uint end_idx){
+    Integrate(dt, start_idx, end_idx);
+	computeDensity(start_idx, end_idx);
+    computeForces(start_idx, end_idx);
 }
 
 INT WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PSTR lpCmdLine, INT nCmdShow){
@@ -345,19 +389,20 @@ INT WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PSTR lpCmdLine,
 	for(uint i=0; i < numParticles; ++i){
 		float x = rand()%BOUNDX;
 		float y = rand()%BOUNDY;
-		particles[i] = {{x, y}, {0}, {0}, 50, 80, 1};
+		float z = rand()%BOUNDZ;
+		particles[i] = {{x, y, z}, {0}, {0}, 50, 80, 1};
 	}
 
 	//Init sliders
 	Slider sliders[5];
-	sliders[0] = {{(int)buffer_width-100-5, 5}, {100, 15}, 0, 1.3, 0, 3.0};
-	sliders[1] = {{(int)buffer_width-100-5, 25}, {100, 15}, 0, 1500000, 10000, 2000000};
-	sliders[2] = {{(int)buffer_width-100-5, 45}, {100, 15}, 0, 30, 20, 180};
-	sliders[3] = {{(int)buffer_width-100-5, 65}, {100, 15}, 0, 100, 1, 300};
-	sliders[4] = {{(int)buffer_width-100-5, 85}, {100, 15}, 0, 1200, 0, 12000};
+	sliders[0] = {{(int)buffer_width-100-5, 5}, {100, 15}, 0, 0, 0, 3.0};					//Target density
+	sliders[1] = {{(int)buffer_width-100-5, 25}, {100, 15}, 0, 8000000, 10000, 2000000};	//Pressuremultiplier
+	sliders[2] = {{(int)buffer_width-100-5, 45}, {100, 15}, 0, 30, 20, 180};				//Radius
+	sliders[3] = {{(int)buffer_width-100-5, 65}, {100, 15}, 0, 100, 1, 300};				//Masse
+	sliders[4] = {{(int)buffer_width-100-5, 85}, {100, 15}, 0, 0, 0, 12000};				//Gravitation
 	uint slider_count = 5;
 
-	cam.pos = {(float)buffer_width/2, (float)buffer_height/2, 650};
+	cam.pos = {(float)buffer_width/2, (float)buffer_height/2, 640};
 	cam.rot = {0, 0};
 	cam.focal_length = 1.;
 
@@ -374,7 +419,7 @@ INT WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PSTR lpCmdLine,
 
 		clearCount();
 
-//#define MULTITHREADING
+#define MULTITHREADING
 #ifdef MULTITHREADING
 #define THREADCOUNT 6
 		std::vector<std::thread> threads;
@@ -388,7 +433,7 @@ INT WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PSTR lpCmdLine,
 
 		std::vector<std::thread> threads2;
 		for(uint i=0; i < THREADCOUNT; ++i){
-			threads2.push_back(std::thread(UpdateFluid, particles, 0.008, thread_inc*i, thread_inc*(i+1)));
+			threads2.push_back(std::thread(updateFluid, 0.008, thread_inc*i, thread_inc*(i+1)));
 		}
 		for(auto& i : threads2){
 			i.join();
@@ -420,7 +465,16 @@ INT WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PSTR lpCmdLine,
 			}
 		}
 
+		timer.start();
+
+		triangle_count = 0;
+		for(uint i=0; i < numParticles; ++i){
+			Particle& p = particles[i];
+			addCube({p.pos.x, p.pos.y, p.pos.z}, {2.5, 2.5, 2.5}, 0x0040FF);
+		}
+
 		//Update sliders
+		triangle2D_count = 0;
 		updateSliders(sliders, slider_count);
 		TARGET_DENSITY = sliders[0].val;
 		PRESSURE_MULTIPLIER = sliders[1].val;
@@ -428,15 +482,7 @@ INT WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PSTR lpCmdLine,
 		MASS = sliders[3].val;
 		GRAVITY = sliders[4].val;
 
-		timer.start();
-
-		triangle_count = 0;
-		for(uint i=0; i < numParticles; ++i){
-			Particle& p = particles[i];
-			addCube({p.pos.x, p.pos.y, 0}, {2.5, 2.5, 2.5}, 0x0040FF);
-		}
-
-		display(triangles, triangle_count);
+		display(triangles, triangle_count, triangles2D, triangle2D_count);
 
 		std::cout << "Renderzeit: " << timer.measure_ms() << std::endl;
 
