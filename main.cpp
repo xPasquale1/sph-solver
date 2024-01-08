@@ -178,17 +178,9 @@ inline long positionToIndex(vec2 pos){
 	return (uint)(pos.y/(BOUNDY+1)*HASHGRIDY)*HASHGRIDX+pos.x/(BOUNDX+1)*HASHGRIDX;
 }
 
-void Integrate(double dt, uint start_idx, uint end_idx){
+inline void clipToBoundary(uint start_idx, uint end_idx){
 	for(uint i=start_idx; i < end_idx; ++i){
-		//Update particle
 		Particle& p = particles[i];
-		p.vel.x += p.force.x/p.density*dt;
-		p.vel.y += p.force.y/p.density*dt;
-		p.pos.x += p.vel.x*dt;
-		p.pos.y += p.vel.y*dt;
-		p.predicted_pos.x = p.pos.x+p.vel.x*dt;
-		p.predicted_pos.y = p.pos.y+p.vel.y*dt;
-
 		if(p.pos.y < 0){
 			p.pos.y = 0;
 			p.vel.y = p.vel.y*DAMPING;
@@ -205,6 +197,18 @@ void Integrate(double dt, uint start_idx, uint end_idx){
 			p.pos.x = BOUNDX-1;
 			p.vel.x = p.vel.x*DAMPING;
 		}
+	}
+}
+inline void Integrate(double dt, uint start_idx, uint end_idx){
+	for(uint i=start_idx; i < end_idx; ++i){
+		//Update particle
+		Particle& p = particles[i];
+		p.vel.x += p.force.x/p.density*dt;
+		p.vel.y += p.force.y/p.density*dt;
+		p.pos.x += p.vel.x*dt;
+		p.pos.y += p.vel.y*dt;
+		p.predicted_pos.x = p.pos.x+p.vel.x*dt;
+		p.predicted_pos.y = p.pos.y+p.vel.y*dt;
 	}
 }
 
@@ -252,7 +256,7 @@ inline float densityError(float density){
 inline float sharedPressure(float densityA, float densityB){
 	float pressureA = densityError(densityA);
 	float pressureB = densityError(densityB);
-	return (pressureA+pressureB)/2.f;
+	return (pressureA+pressureB)*0.5f;
 }
 void computeForces(uint start_idx, uint end_idx){
 	for(uint i=start_idx; i < end_idx; ++i){
@@ -334,7 +338,7 @@ INT WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PSTR lpCmdLine,
 	//Init sliders
 	Slider sliders[5];
 	sliders[0] = {{(int)buffer_width-100-5, 5}, {100, 15}, 0, 1.3, 0, 3.0};
-	sliders[1] = {{(int)buffer_width-100-5, 25}, {100, 15}, 0, 1500000, 10000, 2000000};
+	sliders[1] = {{(int)buffer_width-100-5, 25}, {100, 15}, 0, 1800000, 10000, 2000000};
 	sliders[2] = {{(int)buffer_width-100-5, 45}, {100, 15}, 0, 28, 20, 180};
 	sliders[3] = {{(int)buffer_width-100-5, 65}, {100, 15}, 0, 100, 1, 300};
 	sliders[4] = {{(int)buffer_width-100-5, 85}, {100, 15}, 0, 0, 0, 12000};
@@ -359,23 +363,28 @@ INT WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PSTR lpCmdLine,
 //#define MULTITHREADING
 #ifdef MULTITHREADING
 #define THREADCOUNT 6
-		std::vector<std::thread> threads;
+		std::vector<std::thread> threads(THREADCOUNT);
 		uint thread_inc = numParticles/THREADCOUNT;
 		for(uint i=0; i < THREADCOUNT; ++i){
-			threads.push_back(std::thread(particlesToGrid, thread_inc*i, thread_inc*(i+1)));
+			threads[i] = std::thread(clipToBoundary, thread_inc*i, thread_inc*(i+1));
 		}
 		for(auto& i : threads){
 			i.join();
 		}
-
-		std::vector<std::thread> threads2;
 		for(uint i=0; i < THREADCOUNT; ++i){
-			threads2.push_back(std::thread(UpdateFluid, particles, 0.008, thread_inc*i, thread_inc*(i+1)));
+			threads[i] = std::thread(particlesToGrid, thread_inc*i, thread_inc*(i+1));
 		}
-		for(auto& i : threads2){
+		for(auto& i : threads){
+			i.join();
+		}
+		for(uint i=0; i < THREADCOUNT; ++i){
+			threads[i] = std::thread(UpdateFluid, particles, 0.008, thread_inc*i, thread_inc*(i+1));
+		}
+		for(auto& i : threads){
 			i.join();
 		}
 #else
+		clipToBoundary(0, numParticles);
 		particlesToGrid(0, numParticles);
 		UpdateFluid(particles, 0.008, 0, numParticles);
 #endif
